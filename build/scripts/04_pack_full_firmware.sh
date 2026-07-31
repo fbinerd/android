@@ -14,10 +14,38 @@ AMPART="$ROOT_DIR/build/tools/ampart/ampart"
 ORIGINAL_IMG="$ROOT_DIR/workspace/aquario_base.img"
 OUTPUT_IMG="$OUT_DIR/${TARGET}-android9-v70-full-factory.img"
 
-LAYOUT='logo::8M:1 recovery::24M:1 misc::8M:1 dtbo::8M:1 cri_data::8M:2 param::16M:2 boot::16M:1 rsv::16M:1 metadata::16M:1 vbmeta::2M:1 tee::32M:1 vendor::512M:1 odm::128M:1 system::1856M:1 product::128M:1 cache::1120M:2 data::-1:4'
+FLASH_SIZE_GB="${FLASH_SIZE_GB:-8g}"
+STORAGE_MEDIUM="${STORAGE_MEDIUM:-emmc}"
+SWAP_TYPE="${SWAP_TYPE:-zram_256m}"
+
+# Seleção Dinâmica do Preset de Layout com base nas preferências do menuconfig
+case "$FLASH_SIZE_GB" in
+    16g)
+        SYSTEM_SIZE="2560M"
+        CACHE_SIZE="2048M"
+        ;;
+    32g)
+        SYSTEM_SIZE="3072M"
+        CACHE_SIZE="2048M"
+        ;;
+    *)
+        SYSTEM_SIZE="1856M"
+        CACHE_SIZE="1120M"
+        ;;
+esac
+
+SWAP_PART=""
+if [[ "$SWAP_TYPE" == "partition" ]]; then
+    SWAP_PART="swap::512M:4 "
+fi
+
+LAYOUT="logo::8M:1 recovery::24M:1 misc::8M:1 dtbo::8M:1 cri_data::8M:2 param::16M:2 boot::16M:1 rsv::16M:1 metadata::16M:1 vbmeta::2M:1 tee::32M:1 vendor::512M:1 odm::128M:1 system::${SYSTEM_SIZE}:1 product::128M:1 cache::${CACHE_SIZE}:2 ${SWAP_PART}data::-1:4"
 
 echo "=========================================================="
-echo "   EMPACOTAMENTO DO FULL FIRMWARE (eMMC / SD)"
+echo "   EMPACOTAMENTO DO FULL FIRMWARE (STORAGE PRESET)"
+echo "   Tamanho da Flash:  $FLASH_SIZE_GB"
+echo "   Mídia de Destino:  $STORAGE_MEDIUM"
+echo "   Tipo de Swap:      $SWAP_TYPE"
 echo "=========================================================="
 
 if [[ ! -f "$ORIGINAL_IMG" ]]; then
@@ -28,7 +56,7 @@ fi
 echo "-> Criando imagem de destino a partir do workspace..."
 cp --reflink=auto --sparse=always "$ORIGINAL_IMG" "$OUTPUT_IMG"
 
-echo "-> Aplicando layout de 14 partições com ampart..."
+echo "-> Aplicando layout EPT customizado via ampart..."
 "$AMPART" --migrate none --mode dclone "$OUTPUT_IMG" $LAYOUT || true
 
 echo "-> Gravando boot-aquario-performance-v70 no setor de boot..."
@@ -38,7 +66,7 @@ if [[ ! -f "$BOOT_PADDED" ]]; then
 fi
 
 SNAP="$("$AMPART" --mode esnapshot "$OUTPUT_IMG" 2>&1)"
-SNAP_DEC="$(printf '%s\n' "$SNAP" | grep -E '^bootloader:[0-9]+:[0-9]+:[0-9]+' | head -n1)"
+SNAP_DEC="$(printf '%s\n' "$SNAP" | grep -E '^[a-z0-9_]+:[0-9]+:[0-9]+:[0-9]+' || true)"
 
 declare -A OFFSET
 declare -A SIZE
@@ -75,6 +103,7 @@ CHECKSUM="$(sha256sum "$OUTPUT_IMG" | awk '{print $1}')"
 
 echo "=========================================================="
 echo "✨ FULL FIRMWARE GERADO COM SUCESSO!"
+echo " Preset: $FLASH_SIZE_GB ($STORAGE_MEDIUM, Swap: $SWAP_TYPE)"
 echo " Local: $OUTPUT_IMG"
 echo " SHA256: $CHECKSUM"
 echo "=========================================================="

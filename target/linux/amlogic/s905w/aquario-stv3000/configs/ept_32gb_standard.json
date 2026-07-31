@@ -1,0 +1,6 @@
+{
+  "name": "ept_32gb_standard",
+  "flash_size": "32g",
+  "storage": "emmc",
+  "layout": "logo::8M:1 recovery::24M:1 misc::8M:1 dtbo::8M:1 cri_data::8M:2 param::16M:2 boot::16M:1 rsv::16M:1 metadata::16M:1 vbmeta::2M:1 tee::32M:1 vendor::512M:1 odm::128M:1 system::3072M:1 product::128M:1 cache::2048M:2 data::-1:4"
+}
