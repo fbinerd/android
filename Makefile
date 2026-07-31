@@ -1,12 +1,13 @@
 TARGET ?= aquario-stv3000
 
-.PHONY: all build fetch patch compile pack clean status help ttl
+.PHONY: all build fetch patch compile pack clean status help ttl menuconfig
 
 all: build
 
 help:
 	@echo "Sistema de Build Multi-Dispositivo Android"
 	@echo "Uso:"
+	@echo "  make menuconfig                    - Abre a interface gráfica interativa de seleção de opções"
 	@echo "  make TARGET=<dispositivo> build    - Compila e empacota o firmware completo"
 	@echo "  make TARGET=<dispositivo> fetch    - Baixa os repositórios upstream"
 	@echo "  make TARGET=<dispositivo> patch    - Aplica os patches e overlays do dispositivo"
@@ -16,6 +17,9 @@ help:
 	@echo ""
 	@echo "Dispositivos disponíveis em devices/:"
 	@ls -1 devices/
+
+menuconfig:
+	@./build/scripts/menuconfig.sh $(TARGET)
 
 fetch:
 	@./build.sh $(TARGET) fetch
