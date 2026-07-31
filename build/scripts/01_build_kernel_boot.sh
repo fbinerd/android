@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 TARGET="${1:-aquario-stv3000}"
-DEVICE_DIR="$ROOT_DIR/devices/$TARGET"
+DEVICE_DIR="$(find "$ROOT_DIR/target/linux" -type d -name "$TARGET" | head -n1)"
 
 source "$DEVICE_DIR/board.conf"
 
@@ -40,18 +40,13 @@ echo "-> [1/4] Empacotando Ramdisk do workspace (cpio + gzip)..."
 echo "-> [2/4] Aplicando otimizações de Hardware e Memória no DTB (fdtput)..."
 cp "$BASE_DTB" "$DTB_OUT"
 
-# 1. Ajuste de Standby PSCI (0x10000)
 fdtput -t x "$DTB_OUT" /cpus/idle-states/system-sleep-0 arm,psci-suspend-param 10000
-
-# 2. LED Status GPIODV_24 (GPIO 474)
 fdtput -t s "$DTB_OUT" /sysled status okay
 
-# 3. CEC Pinctrl Sleep
 CEC_PIN="$(fdtget -t x "$DTB_OUT" /aocec pinctrl-0)"
 fdtput -t s "$DTB_OUT" /aocec pinctrl-names default cec_pin_sleep
 fdtput -t x "$DTB_OUT" /aocec pinctrl-1 "$CEC_PIN"
 
-# 4. Alocação CMA (224MB / 229376 KiB) & Desativação VDIN/PicDec
 fdtput -t x "$DTB_OUT" /reserved-memory/linux,codec_mm_cma size 0 0xe000000
 fdtput -t s "$DTB_OUT" /vdin0 status disabled
 fdtput -t s "$DTB_OUT" /vdin1 status disabled

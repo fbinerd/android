@@ -5,22 +5,24 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="${1:-aquario-stv3000}"
 ACTION="${2:-build}"
 
-DEVICE_DIR="$PROJECT_ROOT/devices/$TARGET"
+# Busca o perfil diretamente na árvore de alvos do OpenWrt: target/linux/*/*/$TARGET
+DEVICE_DIR="$(find "$PROJECT_ROOT/target/linux" -type d -name "$TARGET" | head -n1)"
 
-if [[ ! -d "$DEVICE_DIR" ]]; then
-    echo "[ERR] Perfil de dispositivo '$TARGET' não encontrado em $DEVICE_DIR" >&2
-    echo "Perfis disponíveis em devices/:" >&2
-    ls -1 "$PROJECT_ROOT/devices/" >&2
+if [[ -z "$DEVICE_DIR" || ! -f "$DEVICE_DIR/board.conf" ]]; then
+    echo "[ERR] Perfil de equipamento '$TARGET' não encontrado em target/linux/" >&2
+    echo "Equipamentos disponíveis em target/linux/:" >&2
+    find "$PROJECT_ROOT/target/linux" -name "board.conf" | sed "s|$PROJECT_ROOT/target/linux/||g" | sed 's|/board.conf||g' >&2
     exit 1
 fi
 
 source "$DEVICE_DIR/board.conf"
 
 echo "=========================================================="
-echo "   SISTEMA DE COMPILAÇÃO COMPLETA ANDROID MULTI-TARGET"
+echo "   OPENWRT-STYLE ANDROID MULTI-TARGET BUILD SYSTEM"
 echo "=========================================================="
-echo " Alvo selecionado: $BOARD_NAME ($TARGET)"
-echo " Família do SoC:  $SOC_FAMILY ($SOC_MODEL / $ARCH)"
+echo " Equipamento:      $BOARD_NAME ($TARGET)"
+echo " Perfil Target:    $(echo "$DEVICE_DIR" | sed "s|$PROJECT_ROOT/||g")"
+echo " Família do SoC:   $SOC_FAMILY ($SOC_MODEL / $ARCH)"
 echo " Android:          v$ANDROID_VERSION ($ANDROID_BUILD_TYPE)"
 echo " Kernel:           $KERNEL_VERSION (CMA: ${CMA_SIZE_MB}MB)"
 echo " Modo U-Boot:      $UBOOT_MODE"
@@ -58,7 +60,7 @@ case "$ACTION" in
         echo "Limpeza concluída."
         ;;
     *)
-        echo "Uso: $0 <dispositivo> [fetch|patch|compile|pack|build|clean]"
+        echo "Uso: $0 <equipamento> [fetch|patch|compile|pack|build|clean]"
         exit 1
         ;;
 esac

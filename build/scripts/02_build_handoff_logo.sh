@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 TARGET="${1:-aquario-stv3000}"
-DEVICE_DIR="$ROOT_DIR/devices/$TARGET"
+DEVICE_DIR="$(find "$ROOT_DIR/target/linux" -type d -name "$TARGET" | head -n1)"
 
 echo "-> [1/2] Gerando quadros BMP do Logo U-Boot com ponto verde central (Handoff v63)..."
 ASSETS_DIR="$DEVICE_DIR/assets"

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 TARGET="${1:-aquario-stv3000}"
-DEVICE_DIR="$ROOT_DIR/devices/$TARGET"
+DEVICE_DIR="$(find "$ROOT_DIR/target/linux" -type d -name "$TARGET" | head -n1)"
 
 source "$DEVICE_DIR/board.conf"
 
@@ -21,10 +21,7 @@ echo "   Modo Selecionado: $UBOOT_MODE"
 echo "=========================================================="
 
 if [[ "$UBOOT_MODE" == "prebuilt" ]]; then
-    PREBUILT_PATH="$ROOT_DIR/$UBOOT_PREBUILT_BIN"
-    if [[ ! -f "$PREBUILT_PATH" ]]; then
-        PREBUILT_PATH="$DEVICE_DIR/prebuilts/uboot-gxl_p281_v1.bin"
-    fi
+    PREBUILT_PATH="$DEVICE_DIR/prebuilts/uboot-gxl_p281_v1.bin"
     
     echo "-> Utilizando binário pré-compilado do U-Boot FIP..."
     echo "   Origem: $PREBUILT_PATH"
@@ -47,10 +44,8 @@ elif [[ "$UBOOT_MODE" == "build" ]]; then
         DOCKER_CMD="sudo docker"
     fi
 
-    # Executa a compilação do U-Boot dentro do container isolado
     $DOCKER_CMD exec -i android9-aquario bash -c "cd /workspace/uboot && make $UBOOT_DEFCONFIG && make -j\$(nproc)"
     
-    # Se gerou u-boot.bin, copia para out/
     if [[ -f "$UBOOT_SRC/u-boot.bin" ]]; then
         cp "$UBOOT_SRC/u-boot.bin" "$OUT_UBOOT_BIN"
         echo "   [OK] U-Boot compilado com sucesso a partir do código C!"

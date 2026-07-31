@@ -5,11 +5,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 TARGET="${1:-aquario-stv3000}"
-DEVICE_DIR="$ROOT_DIR/target/linux/amlogic/s905w/stv3000"
+DEVICE_DIR="$(find "$ROOT_DIR/target/linux" -type d -name "$TARGET" | head -n1)"
 DOTCONFIG="$ROOT_DIR/.config"
 
-if [[ ! -d "$DEVICE_DIR" ]]; then
-    echo "[ERR] Perfil '$TARGET' não encontrado em $DEVICE_DIR"
+if [[ -z "$DEVICE_DIR" || ! -d "$DEVICE_DIR" ]]; then
+    echo "[ERR] Perfil '$TARGET' não encontrado em target/linux/"
     exit 1
 fi
 
