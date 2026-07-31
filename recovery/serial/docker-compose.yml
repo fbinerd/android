@@ -1,0 +1,35 @@
+services:
+  serial-terminal:
+    build:
+      context: .
+      network: host
+      target: serial-terminal
+    volumes:
+      - ./logs:/var/log/serial
+    devices:
+      - "${SERIAL_DEVICE:-/dev/ttyUSB0}:${SERIAL_DEVICE:-/dev/ttyUSB0}"
+    restart: unless-stopped
+
+  tftp-server:
+    build:
+      context: .
+      network: host
+      target: tftp-server
+    volumes:
+      - "${TFTP_VOLUME_PATH}:/var/tftpboot:ro"
+      - ./tftp_backups:/var/tftp_backups
+      - ./logs:/var/log/router
+    network_mode: host
+    restart: unless-stopped
+
+  analysis-tools:
+    build:
+      context: .
+      network: host
+      target: analysis-tools
+    command: sleep infinity
+    profiles:
+      - analysis
+    volumes:
+      - ../analis:/workspace/analis
+      - ../openwrt:/workspace/openwrt
