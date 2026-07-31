@@ -1,0 +1,65 @@
+name: Build Firmware CI/CD
+
+on:
+  push:
+    branches: [ master, main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Selecione o perfil do dispositivo'
+        required: true
+        default: 'aquario-stv3000'
+        type: choice
+        options:
+          - aquario-stv3000
+      action:
+        description: 'Ação do Build'
+        required: true
+        default: 'build'
+        type: choice
+        options:
+          - build
+          - compile
+          - patch
+
+jobs:
+  build-firmware:
+    name: Build Firmware (${{ inputs.target || 'aquario-stv3000' }})
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout do Repositório
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: 🐳 Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: ⚡ Configurar Cache do ccache / Workspace
+        uses: actions/cache@v4
+        with:
+          path: |
+            .ccache
+            workspace/
+          key: ${{ runner.os }}-android-build-${{ inputs.target || 'aquario-stv3000' }}-${{ hashFiles('devices/**') }}
+          restore-keys: |
+            ${{ runner.os }}-android-build-${{ inputs.target || 'aquario-stv3000' }}-
+
+      - name: 🛠️ Executar Pipeline de Compilação
+        run: |
+          chmod +x build.sh
+          ./build.sh "${{ inputs.target || 'aquario-stv3000' }}" "${{ inputs.action || 'build' }}"
+
+      - name: 📤 Upload dos Artefatos Compilados (.img)
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ inputs.target || 'aquario-stv3000' }}
+          path: out/${{ inputs.target || 'aquario-stv3000' }}/*.img
+          if-no-files-found: warn
