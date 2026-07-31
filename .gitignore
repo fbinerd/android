@@ -6,6 +6,10 @@ work/
 logs/
 *.log
 
+# Allow prebuilt partition images in device profiles
+!devices/**/prebuilts/*.img
+!devices/**/prebuilts/*.dtb
+
 # Python & Compiled Cache
 __pycache__/
 *.pyc
