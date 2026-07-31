@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <radialGradient id="halo" cx="50%" cy="48%" r="52%">
+      <stop offset="0" stop-color="#0b261b" stop-opacity="0.72"/>
+      <stop offset="0.48" stop-color="#06110d" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="#000000"/>
+  <ellipse cx="960" cy="520" rx="690" ry="390" fill="url(#halo)"/>
+  <g fill="none" stroke="#3ddc84" stroke-linecap="round">
+    <path d="M875 334 L845 293" stroke-width="9" opacity="0.82"/>
+    <path d="M1045 334 L1075 293" stroke-width="9" opacity="0.82"/>
+    <path d="M858 367 Q960 281 1062 367" stroke-width="12"/>
+  </g>
+  <circle cx="913" cy="340" r="8" fill="#ffffff"/>
+  <circle cx="1007" cy="340" r="8" fill="#ffffff"/>
+  <text x="960" y="558" fill="#ffffff" text-anchor="middle"
+        font-family="DejaVu Sans, sans-serif" font-size="222" font-weight="300">android</text>
+  <rect x="812" y="602" width="296" height="4" rx="2" fill="#3ddc84"/>
+  <text x="960" y="650" fill="#aeb8b3" text-anchor="middle"
+        font-family="DejaVu Sans, sans-serif" font-size="25" font-weight="400"
+        letter-spacing="8">AQUARIO / ANDROID 9</text>
+</svg>

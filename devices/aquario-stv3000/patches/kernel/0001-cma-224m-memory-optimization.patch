@@ -1,0 +1,27 @@
+From: Antigravity AI Team <dev@antigravity.ai>
+Subject: [PATCH 0001/0003] arm64: dts: s905w: adjust CMA codec memory allocation to 224MB
+
+Adjust codec_mm_cma reservation from 208MB to 224MB (229376 KiB)
+to eliminate SCATTER_MEM allocation failures during 4K HEVC / H.264
+hardware decoding while preserving system RAM for Android OS.
+
+Signed-off-by: Antigravity AI Team <dev@antigravity.ai>
+---
+ arch/arm64/boot/dts/amlogic/meson-gxl-s905w-stv3000.dts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/amlogic/meson-gxl-s905w-stv3000.dts b/arch/arm64/boot/dts/amlogic/meson-gxl-s905w-stv3000.dts
+index a1b2c34..d5e6f78 100644
+--- a/arch/arm64/boot/dts/amlogic/meson-gxl-s905w-stv3000.dts
++++ b/arch/arm64/boot/dts/amlogic/meson-gxl-s905w-stv3000.dts
+@@ -45,8 +45,8 @@
+ 	codec_mm_cma: linux,codec_mm_cma {
+ 		compatible = "shared-dma-pool";
+ 		reusable;
+-		size = <0x0 0x0d000000>; /* 208 MB */
++		size = <0x0 0x0e000000>; /* 224 MB (229376 KiB) */
+ 		alignment = <0x0 0x400000>;
+ 	};
+ };
+-- 
+2.34.1

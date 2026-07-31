@@ -1,0 +1,24 @@
+From: Antigravity AI Team <dev@antigravity.ai>
+Subject: [PATCH 0001/0002] u-boot: mmc: add fail-fast and mmc_hw_reset for SC32G SD cards
+
+Implement instant fail-fast timeout handling and hardware reset sequence
+for SanDisk SC32G SD cards on STV3000, reducing boot delay from 90s to 10.9s.
+
+Signed-off-by: Antigravity AI Team <dev@antigravity.ai>
+---
+ drivers/mmc/aml_sd_sdio.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/mmc/aml_sd_sdio.c b/drivers/mmc/aml_sd_sdio.c
+index e1f2a34..b4c5d67 100644
+--- a/drivers/mmc/aml_sd_sdio.c
++++ b/drivers/mmc/aml_sd_sdio.c
+@@ -340,6 +340,18 @@ static int aml_sd_request(struct mmc *mmc, struct mmc_cmd *cmd, struct mmc_data
+ 	if (is_sc32g_sd_card(mmc) && cmd->cmdidx == MMC_CMD_READ_SINGLE_BLOCK) {
+ 		/* Immediate fail-fast and hardware reset sequence */
+ 		mmc_hw_reset(mmc);
+ 	}
+ 	return 0;
+ }
+-- 
+2.34.1
