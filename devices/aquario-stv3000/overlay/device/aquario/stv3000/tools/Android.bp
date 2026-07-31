@@ -1,7 +1,0 @@
-cc_binary {
-    name: "aquario_set_prlimit",
-    srcs: ["set_prlimit.c"],
-    static_executable: true,
-    static_libs: ["libc", "libm", "libdl"],
-    stl: "none",
-}
