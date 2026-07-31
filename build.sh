@@ -23,6 +23,7 @@ echo " Alvo selecionado: $BOARD_NAME ($TARGET)"
 echo " Família do SoC:  $SOC_FAMILY ($SOC_MODEL / $ARCH)"
 echo " Android:          v$ANDROID_VERSION ($ANDROID_BUILD_TYPE)"
 echo " Kernel:           $KERNEL_VERSION (CMA: ${CMA_SIZE_MB}MB)"
+echo " Modo U-Boot:      $UBOOT_MODE"
 echo "=========================================================="
 
 case "$ACTION" in
@@ -33,13 +34,11 @@ case "$ACTION" in
         ;;
     patch)
         echo "[2/4] Aplicando patches e overlays..."
-        echo "Patches do Kernel:  $DEVICE_DIR/patches/kernel/"
-        echo "Patches do U-Boot:  $DEVICE_DIR/patches/uboot/"
-        echo "Patches do AOSP:    $DEVICE_DIR/patches/aosp9/"
-        echo "Patches aplicados com sucesso."
+        "$PROJECT_ROOT/build/scripts/01_apply_patches.sh" "$TARGET"
         ;;
     compile)
-        echo "[3/4] EXECUTANDO COMPILAÇÃO REAL DO KERNEL, BOOT E AOSP..."
+        echo "[3/4] EXECUTANDO COMPILAÇÃO REAL DO U-BOOT, KERNEL, BOOT E AOSP..."
+        "$PROJECT_ROOT/build/scripts/00_build_uboot.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/01_build_kernel_boot.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/02_build_handoff_logo.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/03_build_aosp_partitions.sh" "$TARGET"
@@ -47,6 +46,7 @@ case "$ACTION" in
         ;;
     pack|build)
         echo "[4/4] EXECUTANDO PIPELINE COMPLETO DE COMPILAÇÃO E EMPACOTAMENTO..."
+        "$PROJECT_ROOT/build/scripts/00_build_uboot.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/01_build_kernel_boot.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/02_build_handoff_logo.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/03_build_aosp_partitions.sh" "$TARGET"
