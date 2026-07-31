@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.aquario.monitor">
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.INTERNAL_SYSTEM_WINDOW" />
+    <uses-permission android:name="android.permission.GET_TASKS" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+
+    <application
+        android:allowBackup="false"
+        android:label="Aquario Monitor"
+        android:persistent="true"
+        android:theme="@style/AppTheme">
+        <service
+            android:name=".MetricsOverlayService"
+            android:exported="true" />
+
+        <activity
+            android:name=".StarterActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/StarterTheme" />
+    </application>
+</manifest>
