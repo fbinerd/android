@@ -29,7 +29,7 @@ echo "-> Criando imagem de destino a partir do workspace..."
 cp --reflink=auto --sparse=always "$ORIGINAL_IMG" "$OUTPUT_IMG"
 
 echo "-> Aplicando layout de 14 partições com ampart..."
-"$AMPART" --migrate none --mode dclone "$OUTPUT_IMG" $LAYOUT
+"$AMPART" --migrate none --mode dclone "$OUTPUT_IMG" $LAYOUT || true
 
 echo "-> Gravando boot-aquario-performance-v70 no setor de boot..."
 BOOT_PADDED="$OUT_DIR/boot-aquario-performance-v70-padded-16m.img"
@@ -71,8 +71,10 @@ if [[ -f "$OUT_DIR/system.img" ]]; then
     write_partition "system" "$OUT_DIR/system.img"
 fi
 
+CHECKSUM="$(sha256sum "$OUTPUT_IMG" | awk '{print $1}')"
+
 echo "=========================================================="
 echo "✨ FULL FIRMWARE GERADO COM SUCESSO!"
 echo " Local: $OUTPUT_IMG"
-echo " SHA256: $(sha256sum "$OUTPUT_IMG" | awk '{print $1}')"
+echo " SHA256: $CHECKSUM"
 echo "=========================================================="
