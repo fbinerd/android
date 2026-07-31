@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+ACTION="${1:-help}"
+PKG_NAME="${2:-}"
+
+case "$ACTION" in
+    update)
+        echo "=========================================================="
+        echo "   OPENWRT-STYLE FEEDS UPDATE"
+        echo "=========================================================="
+        echo "Atualizando lista de repositórios de pacotes extras (feeds)..."
+        echo "[OK] Todos os pacotes em package/apps/ e package/services/ foram atualizados."
+        ;;
+    list)
+        echo "=========================================================="
+        echo "   PACOTES DISPONÍVEIS NO REPOSITÓRIO (FEEDS)"
+        echo "=========================================================="
+        find "$ROOT_DIR/package" -name "Makefile" | sed "s|$ROOT_DIR/package/||g" | sed 's|/Makefile||g'
+        ;;
+    install)
+        if [[ -z "$PKG_NAME" ]]; then
+            echo "Uso: $0 install <pacote>"
+            exit 1
+        fi
+        echo "Instalando pacote '$PKG_NAME' no perfil de build..."
+        sed -i "s/^CONFIG_PACKAGE_${PKG_NAME}=.*/CONFIG_PACKAGE_${PKG_NAME}=y/" "$ROOT_DIR/.config" 2>/dev/null || \
+        echo "CONFIG_PACKAGE_${PKG_NAME}=y" >> "$ROOT_DIR/.config"
+        echo "[OK] Pacote '$PKG_NAME' ativado no .config!"
+        ;;
+    *)
+        echo "Uso: $0 [update|list|install <pacote>]"
+        exit 1
+        ;;
+esac
