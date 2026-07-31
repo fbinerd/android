@@ -5,13 +5,10 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="${1:-aquario-stv3000}"
 ACTION="${2:-build}"
 
-# Busca o perfil diretamente na árvore de alvos do OpenWrt: target/linux/*/*/$TARGET
 DEVICE_DIR="$(find "$PROJECT_ROOT/target/linux" -type d -name "$TARGET" | head -n1)"
 
 if [[ -z "$DEVICE_DIR" || ! -f "$DEVICE_DIR/board.conf" ]]; then
     echo "[ERR] Perfil de equipamento '$TARGET' não encontrado em target/linux/" >&2
-    echo "Equipamentos disponíveis em target/linux/:" >&2
-    find "$PROJECT_ROOT/target/linux" -name "board.conf" | sed "s|$PROJECT_ROOT/target/linux/||g" | sed 's|/board.conf||g' >&2
     exit 1
 fi
 
@@ -26,6 +23,7 @@ echo " Família do SoC:   $SOC_FAMILY ($SOC_MODEL / $ARCH)"
 echo " Android:          v$ANDROID_VERSION ($ANDROID_BUILD_TYPE)"
 echo " Kernel:           $KERNEL_VERSION (CMA: ${CMA_SIZE_MB}MB)"
 echo " Modo U-Boot:      $UBOOT_MODE"
+echo " Preset Storage:   $FLASH_SIZE_GB ($STORAGE_MEDIUM, Swap: $SWAP_TYPE)"
 echo "=========================================================="
 
 case "$ACTION" in
@@ -39,8 +37,9 @@ case "$ACTION" in
         "$PROJECT_ROOT/build/scripts/01_apply_patches.sh" "$TARGET"
         ;;
     compile)
-        echo "[3/4] EXECUTANDO COMPILAÇÃO REAL DO U-BOOT, KERNEL, BOOT E AOSP..."
+        echo "[3/4] EXECUTANDO COMPILAÇÃO REAL DO U-BOOT, AUTOBOOT, KERNEL E AOSP..."
         "$PROJECT_ROOT/build/scripts/00_build_uboot.sh" "$TARGET"
+        "$PROJECT_ROOT/build/scripts/00_generate_autoscript.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/01_build_kernel_boot.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/02_build_handoff_logo.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/03_build_aosp_partitions.sh" "$TARGET"
@@ -49,6 +48,7 @@ case "$ACTION" in
     pack|build)
         echo "[4/4] EXECUTANDO PIPELINE COMPLETO DE COMPILAÇÃO E EMPACOTAMENTO..."
         "$PROJECT_ROOT/build/scripts/00_build_uboot.sh" "$TARGET"
+        "$PROJECT_ROOT/build/scripts/00_generate_autoscript.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/01_build_kernel_boot.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/02_build_handoff_logo.sh" "$TARGET"
         "$PROJECT_ROOT/build/scripts/03_build_aosp_partitions.sh" "$TARGET"
