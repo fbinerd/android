@@ -1,0 +1,25 @@
+# Build & Cache Directories
+workspace/
+out/
+tmp/
+work/
+logs/
+*.log
+
+# Python & Compiled Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Docker runtime state
+.docker/
+.env
+
+# Temporary artifacts
+*.tmp
+*.bak
+*.swp
+
+# OS Files
+.DS_Store
+Thumbs.db
