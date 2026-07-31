@@ -11,7 +11,7 @@ source "$DEVICE_DIR/board.conf"
 
 OUT_DIR="$ROOT_DIR/out/$TARGET"
 AMPART="$ROOT_DIR/build/tools/ampart/ampart"
-ORIGINAL_IMG="/media/dados_2tb/opw/openwrt-build-tools/tools/firmware-lab/infra/aidan/data/aquario.img"
+ORIGINAL_IMG="$ROOT_DIR/workspace/aquario_base.img"
 OUTPUT_IMG="$OUT_DIR/${TARGET}-android9-v70-full-factory.img"
 
 LAYOUT='logo::8M:1 recovery::24M:1 misc::8M:1 dtbo::8M:1 cri_data::8M:2 param::16M:2 boot::16M:1 rsv::16M:1 metadata::16M:1 vbmeta::2M:1 tee::32M:1 vendor::512M:1 odm::128M:1 system::1856M:1 product::128M:1 cache::1120M:2 data::-1:4'
@@ -21,11 +21,11 @@ echo "   EMPACOTAMENTO DO FULL FIRMWARE (eMMC / SD)"
 echo "=========================================================="
 
 if [[ ! -f "$ORIGINAL_IMG" ]]; then
-    echo "[ERR] Imagem de fábrica base não encontrada em $ORIGINAL_IMG"
+    echo "[ERR] Imagem base de fábrica não encontrada em workspace/aquario_base.img"
     exit 1
 fi
 
-echo "-> Criando imagem de destino..."
+echo "-> Criando imagem de destino a partir do workspace..."
 cp --reflink=auto --sparse=always "$ORIGINAL_IMG" "$OUTPUT_IMG"
 
 echo "-> Aplicando layout de 14 partições com ampart..."

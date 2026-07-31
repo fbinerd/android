@@ -12,14 +12,13 @@ source "$DEVICE_DIR/board.conf"
 OUT_DIR="$ROOT_DIR/out/$TARGET"
 mkdir -p "$OUT_DIR"
 
-MKBOOTIMG="$ROOT_DIR/build/tools/mkbootimg"
+MKBOOTIMG="$ROOT_DIR/workspace/aosp9/system/core/mkbootimg/mkbootimg"
 if [[ ! -f "$MKBOOTIMG" ]]; then
-    # Fallback para o mkbootimg do AOSP se existir
-    MKBOOTIMG="/media/dados_2tb/opw/openwrt-build-tools/tools/firmware-lab/infra/aidan/aosp9/system/core/mkbootimg/mkbootimg"
+    MKBOOTIMG="$ROOT_DIR/build/tools/mkbootimg"
 fi
 
-KERNEL_GZ="/media/dados_2tb/opw/openwrt-build-tools/tools/firmware-lab/work/build-khadas-fresh-20260721/kernel-out/arch/arm64/boot/Image.gz"
-RAMDISK_ROOT="/media/dados_2tb/opw/openwrt-build-tools/tools/firmware-lab/work/teste-khadas-fresh-20260730-apps-metrics-v46/ramdisk-root"
+KERNEL_GZ="$ROOT_DIR/workspace/kernel/arch/arm64/boot/Image.gz"
+RAMDISK_ROOT="$ROOT_DIR/workspace/ramdisk-root"
 BASE_DTB="$DEVICE_DIR/prebuilts/aquario-performance-v69.dtb"
 
 RAMDISK_IMG="$OUT_DIR/ramdisk-performance-v70.img"
@@ -29,7 +28,7 @@ PADDED_IMG="$OUT_DIR/boot-aquario-performance-v70-padded-16m.img"
 
 CMDLINE="rootfstype=ramfs init=/init androidboot.selinux=permissive androidboot.hardware=amlogic androidboot.serialno=210bc2004e90bd1545c223aedae47e13 buildvariant=userdebug audit=0 console=ttyS0,115200 earlycon=aml-uart,0xc81004c0 loglevel=4 no_console_suspend maxcpus=4 logo=osd1,loaded,0x3d800000,1080p60hz fb_width=1920 fb_height=1080 vout=1080p60hz,enable hdmimode=1080p60hz"
 
-echo "-> [1/4] Empacotando Ramdisk (cpio + gzip)..."
+echo "-> [1/4] Empacotando Ramdisk do workspace (cpio + gzip)..."
 (
     cd "$RAMDISK_ROOT"
     find . -print0 |
