@@ -1,0 +1,45 @@
+diff --git a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+index 20a8da424..6f8f5a100 100644
+--- a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
++++ b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+@@ -84,6 +84,7 @@ static void hdmitx_fmt_attr(struct hdmitx_dev *hdev);
+ static void clear_rx_vinfo(struct hdmitx_dev *hdev);
+ static void edidinfo_attach_to_vinfo(struct hdmitx_dev *hdev);
+ static void edidinfo_detach_to_vinfo(struct hdmitx_dev *hdev);
++extern int get_logo_loaded(void);
+ 
+ 
+ static DEFINE_MUTEX(setclk_mutex);
+@@ -583,6 +584,21 @@ static int set_disp_mode_auto(void)
+ 	else {
+ 	/* nothing */
+ 	}
++	/*
++	 * Keep the U-Boot link alive until the first Android frame replaces
++	 * its logo. SystemControl briefly requests its EDID-preferred mode
++	 * before applying the configured UI mode, which otherwise resets TMDS.
++	 */
++	if (get_logo_loaded() && (vic_ready != HDMI_Unknown)) {
++		pr_info(SYS
++			"preserve board U-Boot VIC 16 while logo is active; hw VIC %d, defer VIC %d\n",
++			vic_ready, vic);
++		hdev->cur_VIC = HDMI_1080p60;
++		hdev->output_blank_flag = 1;
++		hdev->ready = 1;
++		edidinfo_attach_to_vinfo(hdev);
++		return 1;
++	}
+ 	if ((vic_ready != HDMI_Unknown) && (vic_ready == vic)) {
+ 		pr_info(SYS "[%s] ALREADY init VIC = %d\n",
+ 			__func__, vic);
+@@ -4732,7 +4748,9 @@ static int hdmitx_set_current_vmode(enum vmode_e mode)
+ 		recalc_vinfo_sync_duration(vinfo,
+ 			hdmitx_device.frac_rate_policy);
+ 
+-	if (!(mode & VMODE_INIT_BIT_MASK))
++	if (!(mode & VMODE_INIT_BIT_MASK) ||
++	    (hdmitx_device.hwop.getstate(&hdmitx_device,
++		STAT_VIDEO_VIC, 0) == HDMI_Unknown))
+ 		set_disp_mode_auto();
+ 	else
+ 		pr_info("alread display in uboot\n");

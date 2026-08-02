@@ -1,0 +1,47 @@
+From: Aquario STV3000 bring-up <aquario@local>
+Subject: [PATCH] amlogic: skip eMMC metadata on SD system disk
+
+The STV3000 runs Android from a permanent SD card. Its Amlogic MPT is needed,
+but DTB, DDR and tuning pseudo-devices target eMMC reserved offsets. Avoid
+issuing those reads against SD; boot.img already carries the active DTB.
+
+The vout fallback is also routinely queried before the HDMI server registers,
+so do not report that expected initialization state as an unsupported mode.
+
+diff --git a/drivers/amlogic/media/vout/vout_serve/vout_func.c b/drivers/amlogic/media/vout/vout_serve/vout_func.c
+index 5550505f1..65327f9d7 100644
+--- a/drivers/amlogic/media/vout/vout_serve/vout_func.c
++++ b/drivers/amlogic/media/vout/vout_serve/vout_func.c
+@@ -68,7 +68,7 @@ static struct vinfo_s invalid_vinfo = {
+ 
+ struct vinfo_s *get_invalid_vinfo(int index)
+ {
+-	VOUTERR("invalid vinfo%d. current vmode is not supported\n", index);
++	(void)index;
+ 	return &invalid_vinfo;
+ }
+ EXPORT_SYMBOL(get_invalid_vinfo);
+diff --git a/drivers/amlogic/mmc/emmc_partitions.c b/drivers/amlogic/mmc/emmc_partitions.c
+index 35d9df2eb..ad7757b58 100644
+--- a/drivers/amlogic/mmc/emmc_partitions.c
++++ b/drivers/amlogic/mmc/emmc_partitions.c
+@@ -1442,9 +1442,16 @@ int aml_emmc_partition_ops(struct mmc_card *card, struct gendisk *disk)
+ 		kfree(pt_fmt);
+ 		goto out;
+ 	}
+-	amlmmc_dtb_init(card);
+-	amlmmc_ddr_init(card);
+-	amlmmc_write_tuning_para(card, MMC_TUNING_OFFSET);
++	/*
++	 * The Aquario SD boot profile keeps its DTB in boot.img.  The Amlogic
++	 * DTB, DDR and tuning pseudo-devices address eMMC reserved blocks and
++	 * must not probe those offsets on the permanent SD system disk.
++	 */
++	if (strcmp(mmc_hostname(card->host), "sd")) {
++		amlmmc_dtb_init(card);
++		amlmmc_ddr_init(card);
++		amlmmc_write_tuning_para(card, MMC_TUNING_OFFSET);
++	}
+ 
+ 	aml_store_class = class_create(THIS_MODULE, "aml_store");
+ 	if (IS_ERR(aml_store_class)) {

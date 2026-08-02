@@ -1,0 +1,253 @@
+From: Aquario STV3000 bring-up <aquario@local>
+Subject: [PATCH] aquario: preserve tested input, display and SD behavior
+
+Keep the IR pointer as a separate Android input device, prevent the known
+p281 VECM probe crash, retain the boot logo while Android takes ownership,
+and use the Amlogic MPT instead of probing a generic partition table on the
+permanent SD system disk.
+
+diff --git a/drivers/amlogic/input/remote/remote_core.h b/drivers/amlogic/input/remote/remote_core.h
+index b0f72517c..1a9e6e616 100644
+--- a/drivers/amlogic/input/remote/remote_core.h
++++ b/drivers/amlogic/input/remote/remote_core.h
+@@ -68,6 +68,7 @@ struct remote_raw_handle;
+ struct remote_dev {
+ 	struct device *dev;
+ 	struct input_dev *input_device;
++	struct input_dev *mouse_input_device;
+ 	struct list_head reg_list;
+ 	struct list_head aml_list;
+ 	struct remote_raw_handle *raw;
+diff --git a/drivers/amlogic/input/remote/remote_core.c b/drivers/amlogic/input/remote/remote_core.c
+index 78652cc66..3377def30 100644
+--- a/drivers/amlogic/input/remote/remote_core.c
++++ b/drivers/amlogic/input/remote/remote_core.c
+@@ -65,8 +65,11 @@ bool remote_debug_get_enable(void)
+ static void ir_do_keyup(struct remote_dev *dev)
+ {
+ 	if(!ageing_test_flag){
+-		input_report_key(dev->input_device, dev->last_keycode, 0);
+-		input_sync(dev->input_device);
++		struct input_dev *input = dev->last_keycode == BTN_LEFT ?
++			dev->mouse_input_device : dev->input_device;
++
++		input_report_key(input, dev->last_keycode, 0);
++		input_sync(input);
+ 		if (dev->last_keycode == KEY_POWER)
+ 			pm_relax(dev->dev);
+ 		dev->keypressed = false;
+@@ -106,11 +109,14 @@ static void ir_do_keydown(struct remote_dev *dev, int scancode,
+ 			ir_do_keyup(dev);
+ 
+ 		if (keycode != KEY_RESERVED) {
++			struct input_dev *input = keycode == BTN_LEFT ?
++				dev->mouse_input_device : dev->input_device;
++
+ 			dev->keypressed = true;
+ 			dev->last_scancode = scancode;
+ 			dev->last_keycode = keycode;
+-			input_report_key(dev->input_device, keycode, 1);
+-			input_sync(dev->input_device);
++			input_report_key(input, keycode, 1);
++			input_sync(input);
+ 			remote_dbg(dev->dev, "report key!!\n");
+ 		} else {
+ 			dev_err(dev->dev, "no valid key to handle");
+@@ -178,7 +184,14 @@ struct remote_dev *remote_allocate_device(void)
+ 		kfree(dev);
+ 		return NULL;
+ 	}
++	dev->mouse_input_device = input_allocate_device();
++	if (!dev->mouse_input_device) {
++		input_free_device(dev->input_device);
++		kfree(dev);
++		return NULL;
++	}
+ 	input_set_drvdata(dev->input_device, dev);
++	input_set_drvdata(dev->mouse_input_device, dev);
+ 
+ 	setup_timer(&dev->timer_keyup, ir_timer_keyup, (unsigned long)dev);
+ 
+@@ -191,7 +204,10 @@ EXPORT_SYMBOL(remote_allocate_device);
+ 
+ void remote_free_device(struct remote_dev *dev)
+ {
+-	input_free_device(dev->input_device);
++	if (dev->input_device)
++		input_free_device(dev->input_device);
++	if (dev->mouse_input_device)
++		input_free_device(dev->mouse_input_device);
+ 	kfree(dev);
+ }
+ EXPORT_SYMBOL(remote_free_device);
+@@ -213,20 +229,26 @@ int remote_register_device(struct remote_dev *dev)
+ 	for (i = KEY_OK; i < BTN_TRIGGER_HAPPY; i++)
+ 		__set_bit(i, dev->input_device->keybit);
+ 
+-	__set_bit(BTN_MOUSE, dev->input_device->keybit);
+-	__set_bit(BTN_LEFT, dev->input_device->keybit);
+-	__set_bit(BTN_RIGHT, dev->input_device->keybit);
+-	__set_bit(BTN_MIDDLE, dev->input_device->keybit);
+-
+-	__set_bit(EV_REL, dev->input_device->evbit);
+-	__set_bit(REL_X, dev->input_device->relbit);
+-	__set_bit(REL_Y, dev->input_device->relbit);
+-	__set_bit(REL_WHEEL, dev->input_device->relbit);
++	__set_bit(EV_KEY, dev->mouse_input_device->evbit);
++	__set_bit(BTN_LEFT, dev->mouse_input_device->keybit);
++	__set_bit(EV_REL, dev->mouse_input_device->evbit);
++	__set_bit(REL_X, dev->mouse_input_device->relbit);
++	__set_bit(REL_Y, dev->mouse_input_device->relbit);
++	__set_bit(REL_WHEEL, dev->mouse_input_device->relbit);
+ 
+ 	dev->input_device->keycodesize = sizeof(unsigned short);
+ 	dev->input_device->keycodemax = 0x1ff;
+ 
+ 	ret = input_register_device(dev->input_device);
++	if (ret)
++		return ret;
++
++	ret = input_register_device(dev->mouse_input_device);
++	if (ret) {
++		input_unregister_device(dev->input_device);
++		dev->input_device = NULL;
++		return ret;
++	}
+ 
+ 	dev->debug_current     = 0;
+ 	dev->debug_buffer_size = 4096;
+@@ -246,7 +268,10 @@ void remote_unregister_device(struct remote_dev *dev)
+ 	if (MULTI_IR_SOFTWARE_DECODE(dev->rc_type))
+ 		remote_raw_event_unregister(dev);
+ 
++	input_unregister_device(dev->mouse_input_device);
++	dev->mouse_input_device = NULL;
+ 	input_unregister_device(dev->input_device);
++	dev->input_device = NULL;
+ 	kfree(dev->debug_buffer);
+ }
+ EXPORT_SYMBOL(remote_unregister_device);
+diff --git a/drivers/amlogic/input/remote/remote_meson.c b/drivers/amlogic/input/remote/remote_meson.c
+index 660f5c858..8a078f2a8 100644
+--- a/drivers/amlogic/input/remote/remote_meson.c
++++ b/drivers/amlogic/input/remote/remote_meson.c
+@@ -233,9 +233,9 @@ static int ir_report_rel(struct remote_dev *dev, u32 scancode, int status)
+ 	} else {
+ 		return -EINVAL;
+ 	}
+-	input_event(chip->r_dev->input_device, EV_REL,
+-			mouse_code, cursor_value);
+-	input_sync(chip->r_dev->input_device);
++	input_event(chip->r_dev->mouse_input_device, EV_REL,
++				mouse_code, cursor_value);
++	input_sync(chip->r_dev->mouse_input_device);
+ 
+ 	remote_dbg(chip->dev, "mouse cursor be %s moved %d.\n",
+ 				mouse_code == REL_X ? "horizontal" :
+@@ -260,7 +260,7 @@ static u32 getkeycode(struct remote_dev *dev, u32 scancode)
+ 			scancode == ct->tab.cursor_code.cursor_ok_scancode) {
+ 		remote_dbg(chip->dev, "mouse left button scancode: 0x%x",
+ 					BTN_LEFT);
+-		return BTN_MOUSE;
++		return BTN_LEFT;
+ 	}
+ 
+ 	index = ir_lookup_by_scancode(&ct->tab, scancode);
+@@ -269,6 +269,16 @@ static u32 getkeycode(struct remote_dev *dev, u32 scancode)
+ 		return KEY_RESERVED;
+ 	}
+ 
++	/* Home and Back are an unambiguous escape from pointer mode on TV. */
++	if (ct->ir_dev_mode == MOUSE_MODE &&
++			(ct->tab.codemap[index].map.keycode == KEY_HOME ||
++			 ct->tab.codemap[index].map.keycode == KEY_BACK)) {
++		ct->ir_dev_mode = NORMAL_MODE;
++		dev_info(chip->dev,
++			 "remote control[ID: 0x%x] switch to normal mode\n",
++			 ct->tab.custom_code);
++	}
++
+ 	/*save remote-control work mode*/
+ 	if (dev->keypressed == false &&
+ 			scancode == ct->tab.cursor_code.fn_key_scancode) {
+@@ -838,10 +848,10 @@ static int ir_hardware_free(struct platform_device *pdev)
+ }
+ 
+ static void ir_input_device_init(struct input_dev *dev,
+-	struct device *parent, const char *name)
++	struct device *parent, const char *name, const char *phys)
+ {
+ 	dev->name = name;
+-	dev->phys = "keypad/input0";
++	dev->phys = phys;
+ 	dev->dev.parent = parent;
+ 	dev->id.bustype = BUS_ISA;
+ 	dev->id.vendor  = 0x0001;
+@@ -890,7 +900,10 @@ static int remote_probe(struct platform_device *pdev)
+ 	chip->set_register_config = ir_register_default_config;
+ 	platform_set_drvdata(pdev, chip);
+ 
+-	ir_input_device_init(dev->input_device, &pdev->dev, "aml_keypad");
++	ir_input_device_init(dev->input_device, &pdev->dev, "aml_keypad",
++		"keypad/input0");
++	ir_input_device_init(dev->mouse_input_device, &pdev->dev,
++		"aml_remote_mouse", "keypad/input1");
+ 
+ 	ret = ir_hardware_init(pdev);
+ 	if (ret < 0)
+diff --git a/drivers/amlogic/media/enhancement/amvecm/amvecm.c b/drivers/amlogic/media/enhancement/amvecm/amvecm.c
+index 7638f453e..63f98e087 100644
+--- a/drivers/amlogic/media/enhancement/amvecm/amvecm.c
++++ b/drivers/amlogic/media/enhancement/amvecm/amvecm.c
+@@ -7300,6 +7300,9 @@ static int aml_vecm_probe(struct platform_device *pdev)
+ 
+ 	struct amvecm_dev_s *devp = &amvecm_dev;
+ 
++	pr_info("VECM: disabled during Aquario STV3000 bring-up\n");
++	return -ENODEV;
++
+ 	memset(devp, 0, (sizeof(struct amvecm_dev_s)));
+ 	pr_info("VECM probe start\n");
+ 	ret = alloc_chrdev_region(&devp->devno, 0, 1, AMVECM_NAME);
+diff --git a/drivers/amlogic/media/osd/osd_fb.c b/drivers/amlogic/media/osd/osd_fb.c
+index 5fc7519e1..b60d85041 100644
+--- a/drivers/amlogic/media/osd/osd_fb.c
++++ b/drivers/amlogic/media/osd/osd_fb.c
+@@ -1859,6 +1859,12 @@ static int osd_release(struct fb_info *info, int arg)
+ 
+ int osd_blank(int blank_mode, struct fb_info *info)
+ {
++	if ((blank_mode != 0) && get_logo_loaded() &&
++	    (info->node == osd_get_logo_index())) {
++		osd_log_info("keep boot logo visible; ignore blank from %s\n",
++			     current->comm);
++		return 0;
++	}
+ 	osd_enable_hw(info->node, (blank_mode != 0) ? 0 : 1);
+ 	return 0;
+ }
+diff --git a/drivers/mmc/card/block.c b/drivers/mmc/card/block.c
+index 7774489d8..76f3a96c9 100644
+--- a/drivers/mmc/card/block.c
++++ b/drivers/mmc/card/block.c
+@@ -3045,6 +3045,20 @@ static int mmc_blk_probe(struct mmc_card *card)
+ 
+ 	dev_set_drvdata(&card->dev, md);
+ 
++#ifdef CONFIG_AMLOGIC_MMC
++	/*
++	 * The Aquario SD boot store uses an Amlogic MPT, which is added below
++	 * by aml_emmc_partition_ops(). Generic MBR/GPT probing issues a
++	 * multi-block read that this card leaves timed out for every retry.
++	 * Keep this quirk on the SD host; eMMC probing remains untouched.
++	 */
++	if (!strcmp(mmc_hostname(card->host), "sd")) {
++		md->disk->flags |= GENHD_FL_NO_PART_SCAN;
++		pr_info("%s: skip generic partition scan; use Amlogic MPT\n",
++			mmc_hostname(card->host));
++	}
++#endif
++
+ 	if (mmc_add_disk(md))
+ 		goto out;
+ 

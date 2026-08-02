@@ -1,0 +1,60 @@
+From: Aquario STV3000 bring-up <aquario@local>
+Subject: [PATCH] amlogic: support shared GXL reset registers
+
+The Aquario USB2 PHY and reset controller intentionally access the same GXL
+reset bank. Map that bank without claiming it exclusively, and keep optional
+GXL clock-measurement and single-instance CEC paths out of the error log.
+
+diff --git a/drivers/amlogic/cec/hdmi_ao_cec.c b/drivers/amlogic/cec/hdmi_ao_cec.c
+index 24162d2b3..958c3b425 100644
+--- a/drivers/amlogic/cec/hdmi_ao_cec.c
++++ b/drivers/amlogic/cec/hdmi_ao_cec.c
+@@ -3739,10 +3739,10 @@ static int aml_cec_probe(struct platform_device *pdev)
+ 	/* config: read from dts */
+ 	r = of_property_read_u32(node, "cec_sel", &(cec_dev->cec_num));
+ 	if (r) {
+-		CEC_ERR("not find 'port_num'\n");
++		CEC_INFO("cec_sel absent, using one CEC instance\n");
+ 		cec_dev->cec_num = ENABLE_ONE_CEC;
+ 	} else {
+-		CEC_ERR("use two cec ip\n");
++		CEC_INFO("CEC instance count: %u\n", cec_dev->cec_num);
+ 	}
+ 
+ 	/* if using EE CEC */
+diff --git a/drivers/amlogic/clk/clk_measure.c b/drivers/amlogic/clk/clk_measure.c
+index 7d280f202..d5acf2c91 100644
+--- a/drivers/amlogic/clk/clk_measure.c
++++ b/drivers/amlogic/clk/clk_measure.c
+@@ -1324,7 +1324,7 @@ static int aml_clkmsr_probe(struct platform_device *pdev)
+ 
+ 	if (of_property_read_u32(pdev->dev.of_node,
+ 				"ringctrl", &ringctrl)) {
+-		dev_err(&pdev->dev,
++		dev_dbg(&pdev->dev,
+ 			"failed to get msr ring reg0\n");
+ 		msr_ring_reg0 = NULL;
+ 	} else {
+diff --git a/drivers/amlogic/clk/rstc.c b/drivers/amlogic/clk/rstc.c
+index 4a39ce13f..db111f388 100644
+--- a/drivers/amlogic/clk/rstc.c
++++ b/drivers/amlogic/clk/rstc.c
+@@ -112,9 +112,15 @@ static int meson_reset_probe(struct platform_device *pdev)
+ 		return -ENOMEM;
+ 
+ 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+-	rstc->membase = devm_ioremap_resource(&pdev->dev, res);
+-	if (IS_ERR(rstc->membase))
+-		return PTR_ERR(rstc->membase);
++	/*
++	 * GXL boards expose the USB PHY reset register inside this bank.  The
++	 * vendor USB2 PHY maps that register independently, so reserving the
++	 * complete bank here makes the reset controller fail to probe.
++	 */
++	rstc->membase = devm_ioremap(&pdev->dev, res->start,
++		resource_size(res));
++	if (!rstc->membase)
++		return -ENOMEM;
+ 
+ 	spin_lock_init(&rstc->lock);
+ 

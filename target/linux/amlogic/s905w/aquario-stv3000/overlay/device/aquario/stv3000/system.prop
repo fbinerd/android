@@ -1,0 +1,13 @@
+# Match the proven Aquario Android TV display density. Keep this in system.prop
+# because the development flow updates system.img independently of vendor.img.
+ro.sf.lcd_density=213
+
+# Mali-450 r8p0 advertises EGL native fences but cannot duplicate their file
+# descriptors. Keep this in system because the final vendor image is rebuilt
+# from the proven Aidan blobs after the AOSP build.
+ro.aquario.disable_native_fence_sync=1
+
+# Certified Android TV client identity used by the proven YouTube TV 3.02
+# stack. These are compatibility identifiers, not hardware driver settings.
+ro.com.google.clientidbase=android-xiaomi-tv
+ro.oem.key1=ATV00104319

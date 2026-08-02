@@ -1,0 +1,52 @@
+From: Aquario STV3000 bring-up <aquario@local>
+Subject: [PATCH] mmc: reset SC32G before status recovery after timeout
+
+The Aquario SC32G occasionally leaves the controller in IRQ_SERVICE after the
+first multi-block read. Generic recovery sends CMD13 three times before the
+existing mmc_blk_reset path resets the card, and every status command fails in
+the same stuck state. For this exact card identity only, skip those ineffective
+status probes and return MMC_BLK_ABORT so the existing block-layer reset runs
+immediately and retries the original request. Other SD cards and eMMC retain
+the generic command-recovery sequence.
+
+diff --git a/drivers/mmc/card/block.c b/drivers/mmc/card/block.c
+index 76f3a96c9..0e32b8f6a 100644
+--- a/drivers/mmc/card/block.c
++++ b/drivers/mmc/card/block.c
+@@ -72,6 +72,16 @@
+ #define PACKED_CMD_VER	0x01
+ #define PACKED_CMD_WR	0x02
+ 
++static bool mmc_blk_is_aquario_sc32g(struct mmc_card *card)
++{
++	return card
++		&& mmc_card_sd(card)
++		&& !strcmp(mmc_hostname(card->host), "sd")
++		&& !strcmp(mmc_card_name(card), "SC32G")
++		&& card->cid.manfid == 0x03
++		&& card->cid.oemid == 0x5344;
++}
++
+ static DEFINE_MUTEX(block_mutex);
+ 
+ /*
+@@ -1402,6 +1412,19 @@ static int mmc_blk_cmd_recovery(struct mmc_card *card, struct request *req,
+ 	if (mmc_card_removed(card))
+ 		return ERR_NOMEDIUM;
+ 
++	/*
++	 * CMD13 cannot complete while this card leaves the Amlogic controller
++	 * in IRQ_SERVICE. Return through MMC_BLK_ABORT so mmc_blk_reset() owns
++	 * the reset and the normal request loop retries the original transfer.
++	 */
++	if (mmc_blk_is_aquario_sc32g(card)
++		&& (brq->cmd.error == -ETIMEDOUT
++		    || brq->data.error == -ETIMEDOUT)) {
++		pr_warn("%s: SC32G timeout; reset before CMD13 recovery\n",
++			req->rq_disk->disk_name);
++		return ERR_ABORT;
++	}
++
+ 	/*
+ 	 * Try to get card status which indicates both the card state
+ 	 * and why there was no response.  If the first attempt fails,

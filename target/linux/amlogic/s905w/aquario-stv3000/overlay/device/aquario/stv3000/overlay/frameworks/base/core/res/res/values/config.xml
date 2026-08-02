@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- droidlogic-res.apk in vendor implements this Amlogic TV stub. -->
+    <string name="config_keyguardComponent" translatable="false">com.droidlogic/com.droidlogic.StubKeyguardService</string>
+</resources>

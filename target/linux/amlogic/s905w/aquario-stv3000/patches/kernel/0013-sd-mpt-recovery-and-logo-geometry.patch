@@ -1,0 +1,113 @@
+From: Aquario STV3000 bring-up <aquario@local>
+Subject: [PATCH] aquario: recover SD MPT and retain logo geometry
+
+Android is installed on the SD card using the Amlogic partition table. Treat
+that host as the boot store, reset the exact SC32G card after its known first
+read timeout, and avoid rescaling the U-Boot logo for a temporary HDMI mode.
+
+diff --git a/drivers/amlogic/media/osd/osd_logo.c b/drivers/amlogic/media/osd/osd_logo.c
+index 04423223d..b14ffb153 100644
+--- a/drivers/amlogic/media/osd/osd_logo.c
++++ b/drivers/amlogic/media/osd/osd_logo.c
+@@ -227,6 +227,26 @@ int osd_logo_index_show(int index)
+ 		target_x_end = 1919;
+ 		target_y_end = 1079;
+ 	}
++	/*
++	 * systemcontrol may publish an EDID-preferred mode before hdmitx has
++	 * accepted it. Keep the U-Boot geometry while its logo is active;
++	 * otherwise the OSD is scaled for a mode that is not on the wire.
++	 */
++	if ((src_x_start == 0)
++		&& (src_x_end == (logo_info.fb_width - 1))
++		&& (src_y_start == 0)
++		&& (src_y_end == (logo_info.fb_height - 1))
++		&& (dst_x_start == 0)
++		&& (dst_x_end == (logo_info.fb_width - 1))
++		&& (dst_y_start == 0)
++		&& (dst_y_end == (logo_info.fb_height - 1))
++		&& ((target_x_end != dst_x_end)
++		    || (target_y_end != dst_y_end))) {
++		pr_info("keep U-Boot logo geometry %ux%u; ignore temporary mode %s\n",
++			logo_info.fb_width, logo_info.fb_height,
++			vinfo ? vinfo->name : "null");
++		return 0;
++	}
+ 	if ((src_x_start == 0)
+ 		&& (src_x_end == (logo_info.fb_width - 1))
+ 		&& (src_y_start == 0)
+diff --git a/drivers/amlogic/mmc/emmc_partitions.c b/drivers/amlogic/mmc/emmc_partitions.c
+index 35d9df2eb..206d37841 100644
+--- a/drivers/amlogic/mmc/emmc_partitions.c
++++ b/drivers/amlogic/mmc/emmc_partitions.c
+@@ -850,10 +850,16 @@ static int get_reserve_partition_off_from_tbl(struct mmc_card *card)
+ 	int off = -1, storage_flag;
+ 	struct mmc_host *mmc_host = card->host;
+ 	struct amlsd_host *host = mmc_priv(mmc_host);
++	const char *hostname = mmc_hostname(mmc_host);
+ 
+ 	storage_flag = host->storage_flag;
+-	if (!strcmp(mmc_hostname(mmc_host), "emmc"))
++	if (!strcmp(hostname, "emmc"))
+ 		storage_flag = EMMC_BOOT_FLAG;
++	if (!strcmp(hostname, "sd")) {
++		off = MMC_BOOT_PARTITION_SIZE + MMC_BOOT_PARTITION_RESERVED;
++		pr_info("%s: using SD AML reserve offset 0x%x\n", __func__, off);
++		return off;
++	}
+ 	if ((storage_flag == EMMC_BOOT_FLAG)
+ 			|| (storage_flag == SPI_EMMC_FLAG))	{
+ 		off = MMC_BOOT_PARTITION_SIZE + MMC_BOOT_PARTITION_RESERVED;
+@@ -1182,15 +1188,27 @@ static int emmc_key_init(struct mmc_card *card)
+ static int is_card_emmc(struct mmc_card *card)
+ {
+ 	struct mmc_host *mmc = card->host;
++	const char *host = mmc_hostname(mmc);
+ 
+-	/* emmc port, so it must be an eMMC or TSD */
+-	if (!strcmp(mmc_hostname(mmc), "emmc"))
++	/* Android uses an Amlogic raw partition table on the SD boot store. */
++	if (!strcmp(host, "emmc") || !strcmp(host, "sd")) {
++		pr_info("aml_emmc_partition_ops: allowing host %s\n", host);
+ 		return 1;
+-	else
+-		return 0;
++	}
++
++	pr_info("aml_emmc_partition_ops: skipping non-store host %s\n", host);
++	return 0;
+ 	/*return mmc->is_emmc_port;*/
+ }
+ 
++static bool is_aquario_sc32g_sd(struct mmc_card *card)
++{
++	return !strcmp(mmc_hostname(card->host), "sd")
++		&& !strcmp(mmc_card_name(card), "SC32G")
++		&& card->cid.manfid == 0x03
++		&& card->cid.oemid == 0x5344;
++}
++
+ static ssize_t emmc_version_get(struct class *class,
+ 		struct class_attribute *attr, char *buf)
+ {
+@@ -1361,9 +1384,19 @@ int aml_emmc_partition_ops(struct mmc_card *card, struct gendisk *disk)
+ 
+ 	/*self adapting*/
+ 	ret = mmc_read_internal(card, 1, 1, buffer);
++	if (ret && is_aquario_sc32g_sd(card)) {
++		int reset_ret;
++
++		reset_ret = mmc_hw_reset(card->host);
++		pr_info("%s: SC32G MPT recovery reset: %d\n",
++			__func__, reset_ret);
++		if (!reset_ret)
++			ret = mmc_read_internal(card, 1, 1, buffer);
++	}
+ 	if (ret) {
+-		pr_err("%s: save dtb error", __func__);
++		pr_err("%s: partition probe error\n", __func__);
+ 		kfree(buffer);
++		mmc_release_host(card->host);
+ 		goto out;
+ 	}
+ 

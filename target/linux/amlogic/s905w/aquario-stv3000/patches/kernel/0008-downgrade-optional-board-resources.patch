@@ -1,0 +1,129 @@
+From: Aquario STV3000 bring-up <aquario@local>
+Subject: [PATCH] amlogic: do not report optional board resources as errors
+
+The STV3000 is a GXL playback-only board. Keep supported fallback paths for
+resources that are not wired on this model without logging them as failures.
+
+diff --git a/drivers/amlogic/cec/hdmi_ao_cec.c b/drivers/amlogic/cec/hdmi_ao_cec.c
+index b056cf814..24162d2b3 100644
+--- a/drivers/amlogic/cec/hdmi_ao_cec.c
++++ b/drivers/amlogic/cec/hdmi_ao_cec.c
+@@ -3822,7 +3822,7 @@ static int aml_cec_probe(struct platform_device *pdev)
+ 		}
+ 		cec_dev->hdmi_rxreg = (void *)base;
+ 	} else
+-		CEC_ERR("no hdmirx regs\n");
++		CEC_INFO("no hdmirx regs\n");
+ 
+ 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "hhi");
+ 	if (res) {
+@@ -3834,7 +3834,7 @@ static int aml_cec_probe(struct platform_device *pdev)
+ 		}
+ 		cec_dev->hhi_reg = (void *)base;
+ 	} else
+-		CEC_ERR("no hhi regs\n");
++		CEC_INFO("no hhi regs\n");
+ 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "periphs");
+ 	if (res) {
+ 		base = devm_ioremap(&pdev->dev, res->start,
+@@ -3845,7 +3845,7 @@ static int aml_cec_probe(struct platform_device *pdev)
+ 		}
+ 		cec_dev->periphs_reg = (void *)base;
+ 	} else
+-		CEC_ERR("no periphs regs\n");
++		CEC_INFO("no periphs regs\n");
+ 
+ 	r = of_property_read_u32(node, "port_num", &(cec_dev->port_num));
+ 	if (r) {
+diff --git a/drivers/amlogic/media/common/ge2d/ge2d_main.c b/drivers/amlogic/media/common/ge2d/ge2d_main.c
+index 95ab0a126..50f8133fc 100644
+--- a/drivers/amlogic/media/common/ge2d/ge2d_main.c
++++ b/drivers/amlogic/media/common/ge2d/ge2d_main.c
+@@ -1351,7 +1351,7 @@ static int ge2d_probe(struct platform_device *pdev)
+ 			(void *)res.start, (int)resource_size(&res));
+ 		}
+ 	} else {
+-		ge2d_log_err("register address resource is not found\n");
++		ge2d_log_dbg("using legacy GXL register access\n");
+ 	}
+ 	ret = of_reserved_mem_device_init(&(pdev->dev));
+ 	if (ret < 0)
+diff --git a/drivers/amlogic/uart/meson_uart.c b/drivers/amlogic/uart/meson_uart.c
+index 3ce6eb15a..31da662cf 100644
+--- a/drivers/amlogic/uart/meson_uart.c
++++ b/drivers/amlogic/uart/meson_uart.c
+@@ -1089,7 +1089,8 @@ static int meson_uart_probe(struct platform_device *pdev)
+ #ifdef CONFIG_AMLOGIC_CLK
+ 	clk = devm_clk_get(&pdev->dev, "clk_gate");
+ 	if (IS_ERR(clk)) {
+-		pr_err("%s: clock gate not found\n", dev_name(&pdev->dev));
++		pr_debug("%s: optional clock gate not found\n",
++			 dev_name(&pdev->dev));
+ 		/* return PTR_ERR(clk); */
+ 	} else {
+ 		ret = clk_prepare_enable(clk);
+@@ -1103,7 +1104,8 @@ static int meson_uart_probe(struct platform_device *pdev)
+ 
+ 	clk = devm_clk_get(&pdev->dev, "clk_uart");
+ 	if (IS_ERR(clk)) {
+-		pr_err("%s: clock source not found\n", dev_name(&pdev->dev));
++		pr_debug("%s: optional clock source not found\n",
++			 dev_name(&pdev->dev));
+ 		/* return PTR_ERR(clk); */
+ 	}
+ 	if (!IS_ERR(clk))
+diff --git a/sound/soc/amlogic/meson/spdif_codec.c b/sound/soc/amlogic/meson/spdif_codec.c
+index fc48405a9..134dc0112 100644
+--- a/sound/soc/amlogic/meson/spdif_codec.c
++++ b/sound/soc/amlogic/meson/spdif_codec.c
+@@ -78,7 +78,7 @@ void aml_spdif_pinmux_init(struct device *dev)
+ 		devm_pinctrl_get_select(dev, "audio_spdif_out_mute");
+ 	if (IS_ERR(v_spdif_codec.p_pinctrl_out_mute)) {
+ 		v_spdif_codec.p_pinctrl_out_mute = NULL;
+-		dev_err(dev, "audio_spdif_out_mute can't get pinctrl\n");
++		dev_dbg(dev, "audio_spdif_out_mute pinctrl is not wired\n");
+ 	} else {
+ 		v_spdif_codec.p_pinctrl_out_mute_state =
+ 			pinctrl_lookup_state(v_spdif_codec.p_pinctrl_out_mute,
+@@ -86,7 +86,7 @@ void aml_spdif_pinmux_init(struct device *dev)
+ 		if (IS_ERR(v_spdif_codec.p_pinctrl_out_mute_state)) {
+ 			devm_pinctrl_put(v_spdif_codec.p_pinctrl_out_mute);
+ 			v_spdif_codec.p_pinctrl_out_mute_state = NULL;
+-			dev_err(dev, "audio_spdif_out_mute can't get pinctrl\n");
++			dev_dbg(dev, "audio_spdif_out_mute pinctrl is not wired\n");
+ 		}
+ 	}
+ 
+@@ -94,7 +94,7 @@ void aml_spdif_pinmux_init(struct device *dev)
+ 		devm_pinctrl_get_select(dev, "audio_spdif_out");
+ 	if (IS_ERR(v_spdif_codec.p_pinctrl_out)) {
+ 		v_spdif_codec.p_pinctrl_out = NULL;
+-		dev_err(dev, "audio_spdif_out can't get pinctrl\n");
++		dev_dbg(dev, "audio_spdif_out pinctrl is not wired\n");
+ 	} else {
+ 		v_spdif_codec.p_pinctrl_out_state =
+ 			pinctrl_lookup_state(v_spdif_codec.p_pinctrl_out,
+@@ -102,7 +102,7 @@ void aml_spdif_pinmux_init(struct device *dev)
+ 		if (IS_ERR(v_spdif_codec.p_pinctrl_out_state)) {
+ 			devm_pinctrl_put(v_spdif_codec.p_pinctrl_out);
+ 			v_spdif_codec.p_pinctrl_out_state = NULL;
+-			dev_err(dev, "audio_spdif_out can't get pinctrl\n");
++			dev_dbg(dev, "audio_spdif_out pinctrl is not wired\n");
+ 		}
+ 	}
+ 
+@@ -110,12 +110,12 @@ void aml_spdif_pinmux_init(struct device *dev)
+ 		devm_pinctrl_get_select(dev, "audio_spdif_in_mute");
+ 	if (IS_ERR(v_spdif_codec.p_pinctrl_in_mute)) {
+ 		v_spdif_codec.p_pinctrl_in_mute = NULL;
+-		dev_err(dev, "audio_spdif_in_mute can't get pinctrl\n");
++		dev_dbg(dev, "audio_spdif_in_mute pinctrl is not wired\n");
+ 	}
+ 	v_spdif_codec.p_pinctrl_in =
+ 		devm_pinctrl_get_select(dev, "audio_spdif_in");
+ 	if (IS_ERR(v_spdif_codec.p_pinctrl_in)) {
+ 		v_spdif_codec.p_pinctrl_in = NULL;
+-		dev_err(dev, "audio_spdif_in can't get pinctrl\n");
++		dev_dbg(dev, "audio_spdif_in pinctrl is not wired\n");
+ 	}
+ }

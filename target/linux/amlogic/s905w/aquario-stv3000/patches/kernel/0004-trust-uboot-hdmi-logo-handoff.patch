@@ -1,0 +1,44 @@
+diff --git a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+--- a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
++++ b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+@@ -590,6 +590,6 @@ static int set_disp_mode_auto(void)
+ 	 * before applying the configured UI mode, which otherwise resets TMDS.
+ 	 */
+-	if (get_logo_loaded() && (vic_ready != HDMI_Unknown)) {
++	if (get_logo_loaded()) {
+ 		pr_info(SYS
+ 			"preserve board U-Boot VIC 16 while logo is active; hw VIC %d, defer VIC %d\n",
+ 			vic_ready, vic);
+@@ -4750,9 +4750,7 @@ static int hdmitx_set_current_vmode(enum vmode_e mode)
+ 		recalc_vinfo_sync_duration(vinfo,
+ 			hdmitx_device.frac_rate_policy);
+ 
+-	if (!(mode & VMODE_INIT_BIT_MASK) ||
+-	    (hdmitx_device.hwop.getstate(&hdmitx_device,
+-		STAT_VIDEO_VIC, 0) == HDMI_Unknown))
++	if (!(mode & VMODE_INIT_BIT_MASK))
+ 		set_disp_mode_auto();
+ 	else
+ 		pr_info("alread display in uboot\n");
+diff --git a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hw/hdmi_tx_hw.c b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hw/hdmi_tx_hw.c
+--- a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hw/hdmi_tx_hw.c
++++ b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hw/hdmi_tx_hw.c
+@@ -46,6 +46,8 @@
+ #include "checksha.h"
+ #include <linux/amlogic/media/sound/hdmi_earc.h>
+ 
++extern int get_logo_loaded(void);
++
+ static void mode420_half_horizontal_para(void);
+ static void hdmi_phy_suspend(void);
+ static void hdmi_phy_wakeup(struct hdmitx_dev *hdev);
+@@ -487,6 +489,8 @@ static void hdmi_hwp_init(struct hdmitx_dev *hdev)
+ 	/* enable CLK_TO_DIG */
+ 	hd_set_reg_bits(P_HHI_HDMI_PHY_CNTL3, 0x3, 0, 2);
+-	if (hdmitx_uboot_already_display()) {
++	if (hdmitx_uboot_already_display() || get_logo_loaded()) {
+ 		hdev->cur_VIC = get_vic_from_pkt();
++		if (hdev->cur_VIC == HDMI_Unknown)
++			hdev->cur_VIC = HDMI_1080p60;
+ 		hdev->ready = 1;
+ 		/* Get uboot output color space from AVI */

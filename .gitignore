@@ -5,10 +5,20 @@ tmp/
 work/
 logs/
 *.log
+scratch/
+build/tools/ampack/target/
 
-# Allow prebuilt partition images in device profiles
-!devices/**/prebuilts/*.img
-!devices/**/prebuilts/*.dtb
+# Compiled Recompilable Images & Objects (Ignored)
+system-permanent.img
+boot-*.img
+aquario*.dtb
+uboot-gxl_*.bin
+
+# Allow essential proprietary hardware blobs & prebuilts
+!*.ko
+!**/prebuilts/bootloader-sd-loading-*.bin
+!**/prebuilts/ramdisk-base-*.img
+!**/prebuilts/apps/**/*.apk
 
 # Python & Compiled Cache
 __pycache__/

@@ -1,0 +1,51 @@
+diff --git a/drivers/amlogic/media/osd/osd_logo.c b/drivers/amlogic/media/osd/osd_logo.c
+--- a/drivers/amlogic/media/osd/osd_logo.c
++++ b/drivers/amlogic/media/osd/osd_logo.c
+@@ -32,6 +32,8 @@
+ #include "osd_log.h"
+ #include "osd.h"
+ 
++extern void hdmitx_complete_logo_handoff(void);
++
+ 
+ #undef pr_fmt
+ #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+@@ -285,6 +287,7 @@ int get_logo_loaded(void)
+ void set_logo_loaded(void)
+ {
+ 	logo_info.loaded = 0;
++	hdmitx_complete_logo_handoff();
+ }
+ 
+ __setup("logo=", logo_setup);
+diff --git a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+--- a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
++++ b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+@@ -663,6 +663,27 @@ static int set_disp_mode_auto(void)
+ 	edidinfo_attach_to_vinfo(hdev);
+ 	return ret;
+ }
++
++static void hdmitx_logo_handoff_worker(struct work_struct *work)
++{
++	struct hdmitx_dev *hdev = &hdmitx_device;
++
++	if (!hdev->hpd_state)
++		return;
++	strncpy(hdev->fmt_attr, "rgb,8bit", sizeof(hdev->fmt_attr));
++	hdev->fmt_attr[sizeof(hdev->fmt_attr) - 1] = '\0';
++	pr_info(SYS "complete logo handoff with a validated RGB mode-set\n");
++	set_disp_mode_auto();
++}
++
++static DECLARE_WORK(hdmitx_logo_handoff_work,
++	hdmitx_logo_handoff_worker);
++
++void hdmitx_complete_logo_handoff(void)
++{
++	schedule_work(&hdmitx_logo_handoff_work);
++}
++EXPORT_SYMBOL(hdmitx_complete_logo_handoff);
+ 
+ /*disp_mode attr*/
+ static ssize_t show_disp_mode(struct device *dev,

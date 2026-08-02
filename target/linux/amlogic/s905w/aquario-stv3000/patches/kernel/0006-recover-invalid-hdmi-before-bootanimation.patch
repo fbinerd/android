@@ -1,0 +1,36 @@
+diff --git a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+--- a/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
++++ b/drivers/amlogic/media/vout/hdmitx/hdmi_tx_20/hdmi_tx_main.c
+@@ -591,13 +591,24 @@ static int set_disp_mode_auto(void)
+ 	 */
+ 	if (get_logo_loaded()) {
+-		pr_info(SYS
+-			"preserve board U-Boot VIC 16 while logo is active; hw VIC %d, defer VIC %d\n",
+-			vic_ready, vic);
+-		hdev->cur_VIC = HDMI_1080p60;
+-		hdev->output_blank_flag = 1;
+-		hdev->ready = 1;
+-		edidinfo_attach_to_vinfo(hdev);
+-		return 1;
++		if (vic_ready == HDMI_Unknown) {
++			strncpy(hdev->fmt_attr, "rgb,8bit",
++				sizeof(hdev->fmt_attr));
++			hdev->fmt_attr[sizeof(hdev->fmt_attr) - 1] = '\0';
++			hdev->para = hdmi_get_fmt_name("1080p60hz",
++				hdev->fmt_attr);
++			vic = HDMI_1080p60;
++			pr_info(SYS
++				"recover lost U-Boot link as RGB VIC 16 during logo handoff\n");
++		} else {
++			pr_info(SYS
++				"preserve board U-Boot VIC 16 while logo is active; hw VIC %d, defer VIC %d\n",
++				vic_ready, vic);
++			hdev->cur_VIC = HDMI_1080p60;
++			hdev->output_blank_flag = 1;
++			hdev->ready = 1;
++			edidinfo_attach_to_vinfo(hdev);
++			return 1;
++		}
+ 	}
+ 	if ((vic_ready != HDMI_Unknown) && (vic_ready == vic)) {
+ 		pr_info(SYS "[%s] ALREADY init VIC = %d\n",

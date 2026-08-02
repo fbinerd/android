@@ -1,0 +1,26 @@
+custom_name = aquario-stv3000-remote
+custom_code = 0x4040
+release_delay = 80
+
+fn_key_scancode = 0x47
+cursor_left_scancode = 0x10
+cursor_right_scancode = 0x11
+cursor_up_scancode = 0x0b
+cursor_down_scancode = 0x0e
+cursor_ok_scancode = 0x0d
+
+key_begin
+    0x0b 103 # UP
+    0x0e 108 # DOWN
+    0x10 105 # LEFT
+    0x11 106 # RIGHT
+    0x0d 97  # OK
+    0x1a 102 # HOME
+    0x45 164 # PLAY_PAUSE
+    0x42 158 # BACK
+    0x18 115 # VOLUME_UP
+    0x17 114 # VOLUME_DOWN
+    0x47 388 # MOUSE_MODE
+    0x43 139 # MENU_OPTIONS
+    0x4d 116 # POWER
+key_end

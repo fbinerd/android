@@ -1,0 +1,107 @@
+From: Aquario STV3000 bring-up <aquario@local>
+Subject: [PATCH] mmc: shorten and fail fast on Aquario SC32G timeouts
+
+This exact SD card occasionally leaves the first transfer in IRQ_SERVICE.
+Shorten its descriptor timeout and return the first failure to the block or
+MPT layer without ten controller phase retries. Those layers own reset and
+command-sequence recovery. Every eMMC and other SD-card path remains at the
+vendor timeout and retry policy.
+
+diff --git a/drivers/amlogic/mmc/aml_sd_emmc.c b/drivers/amlogic/mmc/aml_sd_emmc.c
+index 968296ab3..918933061 100644
+--- a/drivers/amlogic/mmc/aml_sd_emmc.c
++++ b/drivers/amlogic/mmc/aml_sd_emmc.c
+@@ -1590,6 +1590,8 @@ static void aml_sd_emmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
+ 		aml_cs_dont_care(mmc);
+ }
+ 
++static bool is_aquario_sc32g_sd(struct mmc_host *mmc);
++
+ #ifdef SD_EMMC_REQ_DMA_SGMAP
+ 
+ static char *aml_sd_emmc_kmap_atomic(
+@@ -1660,7 +1662,7 @@ static u32 aml_sd_emmc_pre_pio(struct amlsd_host *host,
+ 	des_cmd_cur = (struct cmd_cfg *)&(desc_cur->cmd_info);
+ 	des_cmd_cur->data_io = 1;
+ 	des_cmd_cur->owner = 1;
+-	des_cmd_cur->timeout = 0xc;
++	des_cmd_cur->timeout = is_aquario_sc32g_sd(host->mmc) ? 0x9 : 0xc;
+ 	des_cmd_cur->data_wr = data_rw;
+ 	des_cmd_cur->block_mode = block_mode;
+ 	des_cmd_cur->data_num = data_num;
+@@ -1755,7 +1757,7 @@ static u32 aml_sd_emmc_pre_dma(struct amlsd_host *host,
+ 		des_cmd_cur->data_io = 1;
+ 
+ 		des_cmd_cur->owner = 1;
+-		des_cmd_cur->timeout = 0xc;
++		des_cmd_cur->timeout = is_aquario_sc32g_sd(host->mmc) ? 0x9 : 0xc;
+ 
+ 		des_cmd_cur->data_wr = data_rw;
+ 		des_cmd_cur->block_mode = block_mode;
+@@ -2037,6 +2039,15 @@ static void aml_sd_emmc_desc_dump(struct sd_emmc_desc_info *desc_info)
+ 
+ }
+ 
++static bool is_aquario_sc32g_sd(struct mmc_host *mmc)
++{
++	return mmc->card
++		&& !strcmp(mmc_hostname(mmc), "sd")
++		&& !strcmp(mmc_card_name(mmc->card), "SC32G")
++		&& mmc->card->cid.manfid == 0x03
++		&& mmc->card->cid.oemid == 0x5344;
++}
++
+ static void meson_mmc_start_cmd(struct mmc_host *mmc, struct mmc_request *mrq)
+ {
+ 	struct amlsd_platform *pdata = mmc_priv(mmc);
+@@ -2168,7 +2179,8 @@ static void meson_mmc_start_cmd(struct mmc_host *mmc, struct mmc_request *mrq)
+ 	/* data? */
+ 	if (mrq->cmd->data) {
+ #ifdef SD_EMMC_REQ_DMA_SGMAP
+-		des_cmd_cur->timeout = 0xc;
++		/* Recovery is identity-gated; start it without a four-second wait. */
++		des_cmd_cur->timeout = is_aquario_sc32g_sd(mmc) ? 0x9 : 0xc;
+ 		sg_len = host->pre_cmd_op(host, mrq, desc_cur);
+ 		WARN_ON(sg_len == 0);
+ 		desc_cnt += (sg_len - 1);
+@@ -2803,18 +2815,28 @@ static void meson_mmc_request_done(struct mmc_host *mmc,
+ 		meson_mmc_read_resp(host->mmc, mrq->cmd);
+ 
+ 		/* set retry @ 1st error happens! */
+-		if ((host->error_flag == 0)
+-			&& (aml_card_type_mmc(pdata)
+-				|| aml_card_type_non_sdio(pdata))
+-			&& (host->is_tunning == 0)) {
+-
+-			pr_err("%s() %d: set 1st retry!\n",
+-				__func__, __LINE__);
+-			host->error_flag |= (1<<0);
+-			spin_lock_irqsave(&host->mrq_lock, flags);
+-			mrq->cmd->retries = AML_ERROR_RETRY_COUNTER;
+-			spin_unlock_irqrestore(&host->mrq_lock, flags);
+-		}
++		if ((host->error_flag == 0)
++			&& (aml_card_type_mmc(pdata)
++				|| aml_card_type_non_sdio(pdata))
++			&& (host->is_tunning == 0)) {
++			bool sc32g_sd = aml_card_type_non_sdio(pdata)
++				&& is_aquario_sc32g_sd(host->mmc);
++
++			pr_err("%s() %d: set 1st retry!\n",
++				__func__, __LINE__);
++			host->error_flag |= (1<<0);
++			spin_lock_irqsave(&host->mrq_lock, flags);
++			/*
++			 * Return the first timeout to the layer that owns the
++			 * complete command sequence. It may reset the card or
++			 * retry the MPT read. eMMC remains unchanged.
++			 */
++			mrq->cmd->retries = sc32g_sd ? 0 :
++				AML_ERROR_RETRY_COUNTER;
++			spin_unlock_irqrestore(&host->mrq_lock, flags);
++			if (sc32g_sd)
++				pr_err("sd: SC32G fail-fast after timeout\n");
++		}
+ 
+ 		if (aml_card_type_non_sdio(pdata)
+ 			&& (host->error_flag & (1<<0))
